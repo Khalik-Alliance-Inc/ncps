@@ -91,10 +91,9 @@ class CfC(nn.Module):
                     self.wiring_or_units,
                     mode,
                 )
-                # Print info about efficiency gains
+                # Store sparsity information for later access
                 if hasattr(self.rnn_cell, 'sparsity_info'):
-                    info = self.rnn_cell.sparsity_info
-                    print(f"Using efficient sparse implementation: {info['overall_memory_savings']} memory savings")
+                    self._sparsity_info = self.rnn_cell.sparsity_info
             else:
                 self.rnn_cell = WiredCfCCell(
                     input_size,
