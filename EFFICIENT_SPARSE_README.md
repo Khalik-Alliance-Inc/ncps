@@ -40,12 +40,12 @@ model = CfC(
 )
 ```
 
-### 🚀 Performance Improvements
-- **30-70% parameter reduction** based on network sparsity
-- **2-3x faster training** due to reduced gradient computations
-- **3-4x faster inference** by eliminating unnecessary operations
-- **Memory-efficient sparse representations** using edge-list format
-
+### 🚀  Performance and Efficiency Enhancements
+- **Substantial Parameter Reduction:** Delivers significant reductions in parameter count, closely mirroring the sparsity level of the wiring (e.g., 30-70% reduction observed for typical AutoNCP sparsity levels).
+- **Accelerated Training:** Training can be accelerated due to fewer gradient calculations and updates, with potential speedups in epoch times, particularly noticeable in highly sparse configurations.
+- **Quicker Inference:** Inference latency can be reduced by performing computations only on active pathways, leading to more efficient forward passes.
+- **Efficient Memory Usage:** Employs sparse data structures for connectivity, leading to a more compact model representation in memory.
+- 
 ### 🔧 Technical Highlights
 - **Drop-in replacement**: Simply add `use_efficient=True` to existing CfC instantiations
 - **Full backward compatibility**: Existing code continues to work unchanged

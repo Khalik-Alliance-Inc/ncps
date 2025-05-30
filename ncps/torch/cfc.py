@@ -13,12 +13,14 @@
 # limitations under the License.
 
 
+from typing import Optional, Union
+
 import torch
 from torch import nn
-from typing import Optional, Union
+
 import ncps
+
 from . import CfCCell, WiredCfCCell
-from .efficient_cfc_cell import EfficientCfCCell
 from .efficient_wired_cfc_cell import EfficientWiredCfCCell
 from .lstm import LSTMCell
 
@@ -74,16 +76,16 @@ class CfC(nn.Module):
         if isinstance(units, ncps.wirings.Wiring):
             self.wired_mode = True
             if backbone_units is not None:
-                raise ValueError(f"Cannot use backbone_units in wired mode")
+                raise ValueError("Cannot use backbone_units in wired mode")
             if backbone_layers is not None:
-                raise ValueError(f"Cannot use backbone_layers in wired mode")
+                raise ValueError("Cannot use backbone_layers in wired mode")
             if backbone_dropout is not None:
-                raise ValueError(f"Cannot use backbone_dropout in wired mode")
+                raise ValueError("Cannot use backbone_dropout in wired mode")
             # self.rnn_cell = WiredCfCCell(input_size, wiring_or_units)
             self.wiring = units
             self.state_size = self.wiring.units
             self.output_size = self.wiring.output_dim
-            
+
             # Choose implementation based on use_efficient flag
             if use_efficient:
                 self.rnn_cell = EfficientWiredCfCCell(
@@ -92,7 +94,7 @@ class CfC(nn.Module):
                     mode,
                 )
                 # Store sparsity information for later access
-                if hasattr(self.rnn_cell, 'sparsity_info'):
+                if hasattr(self.rnn_cell, "sparsity_info"):
                     self._sparsity_info = self.rnn_cell.sparsity_info
             else:
                 self.rnn_cell = WiredCfCCell(
@@ -203,11 +205,13 @@ class CfC(nn.Module):
             hx = (h_state[0], c_state[0]) if self.use_mixed else h_state[0]
 
         return readout, hx
-    
+
     @property
     def sparsity_info(self):
         """Get sparsity information if using efficient implementation."""
-        if hasattr(self.rnn_cell, 'sparsity_info'):
+        if hasattr(self.rnn_cell, "sparsity_info"):
             return self.rnn_cell.sparsity_info
         else:
-            return {"message": "Sparsity info only available for efficient wired implementation"}
+            return {
+                "message": "Sparsity info only available for efficient wired implementation"
+            }
