@@ -18,6 +18,8 @@ from torch import nn
 from typing import Optional, Union
 import ncps
 from . import CfCCell, WiredCfCCell
+from .efficient_cfc_cell import EfficientCfCCell
+from .efficient_wired_cfc_cell import EfficientWiredCfCCell
 from .lstm import LSTMCell
 
 
@@ -35,6 +37,7 @@ class CfC(nn.Module):
         backbone_units: Optional[int] = None,
         backbone_layers: Optional[int] = None,
         backbone_dropout: Optional[int] = None,
+        use_efficient: bool = False,
     ):
         """Applies a `Closed-form Continuous-time <https://arxiv.org/abs/2106.13898>`_ RNN to an input sequence.
 
@@ -58,6 +61,7 @@ class CfC(nn.Module):
         :param backbone_units: Number of hidden units in the backbone layer (default 128)
         :param backbone_layers: Number of backbone layers (default 1)
         :param backbone_dropout: Dropout rate in the backbone layers (default 0)
+        :param use_efficient: If True, use efficient sparse implementation for wired mode (default False)
         """
 
         super(CfC, self).__init__()
@@ -79,11 +83,23 @@ class CfC(nn.Module):
             self.wiring = units
             self.state_size = self.wiring.units
             self.output_size = self.wiring.output_dim
-            self.rnn_cell = WiredCfCCell(
-                input_size,
-                self.wiring_or_units,
-                mode,
-            )
+            
+            # Choose implementation based on use_efficient flag
+            if use_efficient:
+                self.rnn_cell = EfficientWiredCfCCell(
+                    input_size,
+                    self.wiring_or_units,
+                    mode,
+                )
+                # Store sparsity information for later access
+                if hasattr(self.rnn_cell, 'sparsity_info'):
+                    self._sparsity_info = self.rnn_cell.sparsity_info
+            else:
+                self.rnn_cell = WiredCfCCell(
+                    input_size,
+                    self.wiring_or_units,
+                    mode,
+                )
         else:
             self.wired_false = True
             backbone_units = 128 if backbone_units is None else backbone_units
@@ -187,3 +203,11 @@ class CfC(nn.Module):
             hx = (h_state[0], c_state[0]) if self.use_mixed else h_state[0]
 
         return readout, hx
+    
+    @property
+    def sparsity_info(self):
+        """Get sparsity information if using efficient implementation."""
+        if hasattr(self.rnn_cell, 'sparsity_info'):
+            return self.rnn_cell.sparsity_info
+        else:
+            return {"message": "Sparsity info only available for efficient wired implementation"}
