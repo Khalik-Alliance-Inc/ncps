@@ -60,12 +60,12 @@ class EfficientWiredCfCCell(nn.Module):
         self.total_possible_params = 0
         self.total_actual_params = 0
 
-        for l in range(wiring.num_layers):
-            hidden_units_indices = self._wiring.get_neurons_of_layer(l)
+        for layer_ind in range(wiring.num_layers):
+            hidden_units_indices = self._wiring.get_neurons_of_layer(layer_ind)
             num_hidden_units_in_layer = len(hidden_units_indices)
 
             # Extract adjacency matrices for this layer
-            if l == 0:
+            if layer_ind == 0:
                 # First layer: sensory inputs to inter neurons
                 # Shape: (sensory_input_dim, num_hidden_units_in_layer)
                 cell_sensory_adj = self._wiring.sensory_adjacency_matrix[
@@ -73,7 +73,9 @@ class EfficientWiredCfCCell(nn.Module):
                 ]
             else:
                 # Later layers: previous layer to current layer
-                prev_layer_neurons_indices = self._wiring.get_neurons_of_layer(l - 1)
+                prev_layer_neurons_indices = self._wiring.get_neurons_of_layer(
+                    layer_ind - 1
+                )
                 # Shape: (num_prev_layer_hidden_units, num_hidden_units_in_layer)
                 inter_neuron_adj = self._wiring.adjacency_matrix[
                     np.ix_(prev_layer_neurons_indices, hidden_units_indices)
@@ -102,7 +104,7 @@ class EfficientWiredCfCCell(nn.Module):
             )
 
             # Register as a submodule
-            self.register_module(f"layer_{l}", rnn_cell)
+            self.register_module(f"layer_{layer_ind}", rnn_cell)
             self._layers.append(rnn_cell)
 
             # Update parameter counts
