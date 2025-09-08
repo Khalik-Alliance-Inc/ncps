@@ -16,12 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite in `efficient_wiring_test.py`
 - Sparsity information accessible via `model.sparsity_info` property
 - Full backward compatibility - existing code works unchanged
+  
+### Changed
+- Efficient wired CfC default within-layer recurrence switched to symmetric sparse union (`A ∪ Aᵀ`).
+  - Preserves sparsity; may slightly increase edges vs strictly directed; can modestly smooth dynamics.
+- Test suite updated to validate symmetric recurrence edge counts against wiring (`test_symmetric_recurrence_edge_counts`).
 
 ### Performance Improvements
 - Sparse networks now allocate parameters only for existing connections
 - Reduced gradient computations result in 2-3x faster training
 - Optimized sparse operations provide 3-4x faster inference
 - Memory savings scale with sparsity level (up to 82% reduction at 85% sparsity)
+
+### Documentation
+- `EFFICIENT_SPARSE_README.md` updated with AutoNCP split/fanout formulas, recurrent connectivity options (Directed/Symmetric/Dense), and performance implications.
 
 ## [1.0.0] - 2022-09-27
 ### Added

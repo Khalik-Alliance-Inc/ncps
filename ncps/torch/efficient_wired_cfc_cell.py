@@ -81,12 +81,15 @@ class EfficientWiredCfCCell(nn.Module):
                 cell_sensory_adj = inter_neuron_adj
 
             # Recurrent connections within the current layer's hidden units.
-            # The original WiredCfCCell implicitly adds full recurrence.
-            # For EfficientCfCCell, this is the 'adjacency_matrix' parameter.
-            # Shape: (num_hidden_units_in_layer, num_hidden_units_in_layer)
-            cell_recurrent_adj = np.ones(
-                (num_hidden_units_in_layer, num_hidden_units_in_layer)
-            )
+            # Use the wiring's within-layer adjacency (sparse) and make it symmetric
+            # so an edge exists if either direction is present. This preserves sparsity
+            # and honors AutoNCP, while optionally improving stability vs. strictly
+            # directed recurrence. Shape: (hidden_in_layer, hidden_in_layer)
+            directed_submatrix = self._wiring.adjacency_matrix[
+                np.ix_(hidden_units_indices, hidden_units_indices)
+            ]
+            # Symmetric union of directed edges (boolean OR), cast to float32
+            cell_recurrent_adj = ((directed_submatrix != 0) | (directed_submatrix.T != 0)).astype(np.float32)
 
             # Create efficient CfC cell for this layer
             rnn_cell = EfficientCfCCell(

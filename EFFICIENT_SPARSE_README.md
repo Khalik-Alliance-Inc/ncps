@@ -63,6 +63,20 @@ The implementation includes a comprehensive test suite (`efficient_wiring_test.p
 - Mode compatibility (default, pure, no_gate)
 - Performance improvements
 
+### Formulas and Scaling (AutoNCP and Efficient Wired)
+
+- **AutoNCP splits**: `I_c = U − O`; `C ≈ 0.4 · I_c`; `I = I_c − C`; `D = 1 − sparsity`.
+- **Fanouts**: `F_sens ≈ I · D`; `F_inter ≈ C · D`; `F_mot ≈ C · D`.
+- **Sensory/prev nonzeros per layer**: `N0 ≈ input_dim · F_sens`; `N1 ≈ I · C · D`; `N2 ≈ O · C · D`.
+- **Recurrent nonzeros per layer**:
+  - Dense: `R_ℓ = h_ℓ^2`
+  - Directed: `R0 = 0; R1 ≈ ⌊C · D · 2⌋; R2 = 0`
+  - Symmetric: `R1 ∈ [⌊C · D · 2⌋, 2 · ⌊C · D · 2⌋]`
+- **Total edges**: `E = Σ_ℓ (N_ℓ + R_ℓ)`.
+- **Params per layer**: `default = 4 · E_ℓ + 4 · h_ℓ`; `pure = E_ℓ + 3 · h_ℓ`.
+
+These reflect that parameter and compute scale with the number of active edges (non‑zeros), not dense matrix sizes.
+
 ## Implementation Details
 
 ### New Files:
@@ -75,7 +89,7 @@ Instead of allocating full weight matrices, the implementation:
 1. Identifies non-zero connections from the wiring adjacency matrix
 2. Allocates parameters only for existing connections
 3. Uses efficient sparse operations (scatter_add) for computation
-4. Preserves full recurrent connections within layers
+4. Recurrent connectivity is configurable; efficient wired now defaults to symmetric sparse within‑layer recurrence (A ∪ Aᵀ)
 5. Uses edge list representation of connectivity
 6. Sparse linear operations using gather/scatter instead of matrix multiply
 7. Backward compatible - use_efficient=False gives original behavior
@@ -86,3 +100,26 @@ Instead of allocating full weight matrices, the implementation:
 - Fully backward compatible when `use_efficient=False` (default)
 - Same API and functionality as original implementation
 - Can switch between implementations for testing/comparison
+
+### Recurrent Connectivity Options (Advanced)
+
+- **Directed sparse (AutoNCP, most faithful)**:
+  - Recurrence only where wiring defines it (primarily command layer).
+  - Lowest parameter count; strictly directed graph.
+
+- **Symmetric sparse (current default in efficient wired)**:
+  - Recurrence where wiring had either direction: `A ∪ Aᵀ`.
+  - Still sparse; slightly more edges than directed; can modestly smooth dynamics.
+
+- **Dense (legacy wired behavior)**:
+  - Full `h × h` within‑layer recurrence; highest parameter/compute cost; not aligned with NCP wiring.
+
+Why symmetry can help
+
+`A ∪ Aᵀ` keeps recurrence local to the intended wiring while allowing reciprocal pairs (biologically plausible). It often produces a more balanced recurrent operator, which may reduce directional oscillations. Primary stability still comes from CfC gating (time interpolation).
+
+Performance implications
+
+- Default (dense recurrence): recurrent edges per layer ≈ `h^2` (large).
+- Directed sparse recurrence (AutoNCP): recurrent edges ≈ `⌊C · D · 2⌋` in command layer, ~0 elsewhere.
+- Symmetric sparse recurrence (this change): recurrent edges ≈ `nnz(A ∪ Aᵀ)` ∈ `[⌊C · D · 2⌋, 2 · ⌊C · D · 2⌋]`.

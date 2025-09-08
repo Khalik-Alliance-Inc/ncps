@@ -253,6 +253,77 @@ def test_different_modes():
         print(f"  Mode '{mode}': Verified")
 
 
+def test_symmetric_recurrence_edge_counts():
+    """Verify that efficient wired uses symmetric within-layer recurrence counts.
+
+    Compares expected nonzero edge counts per layer (sensory + recurrent) against
+    the model's reported sparse edge counts, and checks symmetric bounds for the
+    command layer: directed <= symmetric <= 2*directed.
+    """
+    print("\n--- Testing Symmetric Recurrence Edge Counts ---")
+
+    input_size = 16
+    wiring = AutoNCP(units=48, output_size=12, sparsity_level=0.6)
+    wiring.build(input_size)
+
+    model = CfC(
+        input_size=input_size,
+        units=wiring,
+        mode="default",
+        use_efficient=True,
+    )
+
+    # Layer index mapping for AutoNCP: 0=inter, 1=command, 2=motor
+    inter_idx = wiring.get_neurons_of_layer(0)
+    cmd_idx = wiring.get_neurons_of_layer(1)
+    mot_idx = wiring.get_neurons_of_layer(2)
+
+    A = wiring.adjacency_matrix
+    S = wiring.sensory_adjacency_matrix
+
+    # Expected per-layer edge counts: sensory-to-layer + within-layer recurrent
+    # Layer 0 (inter): sensory inputs -> inter, recurrence among inter (usually 0)
+    N0_sens = int(np.count_nonzero(S[:, inter_idx]))
+    A_ii = A[np.ix_(inter_idx, inter_idx)]
+    R0_sym = int(np.count_nonzero((A_ii != 0) | (A_ii.T != 0)))
+    expected_L0 = N0_sens + R0_sym
+
+    # Layer 1 (command): inter -> command, recurrence among command (symmetric union)
+    N1_prev = int(np.count_nonzero(A[np.ix_(inter_idx, cmd_idx)]))
+    A_cc = A[np.ix_(cmd_idx, cmd_idx)]
+    R1_dir = int(np.count_nonzero(A_cc))
+    R1_sym = int(np.count_nonzero((A_cc != 0) | (A_cc.T != 0)))
+    expected_L1 = N1_prev + R1_sym
+
+    # Layer 2 (motor): command -> motor, recurrence among motor (usually 0)
+    N2_prev = int(np.count_nonzero(A[np.ix_(cmd_idx, mot_idx)]))
+    A_mm = A[np.ix_(mot_idx, mot_idx)]
+    R2_sym = int(np.count_nonzero((A_mm != 0) | (A_mm.T != 0)))
+    expected_L2 = N2_prev + R2_sym
+
+    # Retrieve model-reported per-layer sparse connection counts
+    assert hasattr(model, "sparsity_info"), "Model should expose sparsity_info"
+    layer_details = model.sparsity_info.get("layer_details", [])
+    assert len(layer_details) == 3, "AutoNCP should yield 3 layers"
+
+    actual_L0 = int(layer_details[0]["actual_connections"])
+    actual_L1 = int(layer_details[1]["actual_connections"])
+    actual_L2 = int(layer_details[2]["actual_connections"])
+
+    # Check equality with expected counts
+    assert actual_L0 == expected_L0, f"Layer 0 connections mismatch: actual={actual_L0}, expected={expected_L0}"
+    assert actual_L1 == expected_L1, f"Layer 1 connections mismatch: actual={actual_L1}, expected={expected_L1}"
+    assert actual_L2 == expected_L2, f"Layer 2 connections mismatch: actual={actual_L2}, expected={expected_L2}"
+
+    # Check symmetric bounds for command recurrence
+    assert R1_dir <= R1_sym <= 2 * R1_dir if R1_dir > 0 else R1_sym == 0, (
+        f"Symmetric recurrence out of expected bounds: directed={R1_dir}, symmetric={R1_sym}"
+    )
+
+    print(
+        f"  Layer edges ok (L0={actual_L0}, L1={actual_L1}, L2={actual_L2}); R1_dir={R1_dir}, R1_sym={R1_sym}"
+    )
+
 def test_performance():
     """Measure performance characteristics of efficient implementation."""
     print("\n--- Testing Performance Characteristics ---")
@@ -334,6 +405,7 @@ def run_test_suite():
         test_parameter_reduction()
         test_gradient_flow()
         test_different_modes()
+        test_symmetric_recurrence_edge_counts()
         test_performance()
         
         print("\n" + "=" * 70)
